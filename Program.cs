@@ -11,6 +11,8 @@ namespace Backup_Khakhanov
 
     class Program
     {
+        static int fileCount, dirCount;
+
 
         static void Log(string message, LogLevel lvl, int offset = 0)
         {
@@ -45,11 +47,32 @@ namespace Backup_Khakhanov
 
         static void CopyDir(string fromDir, string toDir, int offset = 1)
         {
-            string[] filesInDir = Directory.GetFiles(fromDir);
-            string[] foldersInDir = Directory.GetDirectories(fromDir);
-            Log("Содержимое каталога получено", LogLevel.Debug, offset);
+            string[] filesInDir = null;
+            string[] foldersInDir = null;
 
-            Directory.CreateDirectory(toDir);
+            try
+            {
+                filesInDir = Directory.GetFiles(fromDir);
+                foldersInDir = Directory.GetDirectories(fromDir);
+                Log("Содержимое каталога получено", LogLevel.Debug, offset);
+            }
+            catch (Exception e)
+            {
+                Log($"При чтении данных каталога [{ fromDir }] произошла ошибка: { e.Message }", LogLevel.Error, offset);
+                return;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(toDir);
+                ++dirCount;
+            }
+            catch (Exception e)
+            {
+                Log($"Не удалось создать целевую директорию: {e.Message}", LogLevel.Error, offset);
+                return;
+            }
+
 
             foreach (string fileSource in filesInDir)
             {
@@ -57,10 +80,17 @@ namespace Backup_Khakhanov
                 string fileDest = toDir + "\\" + Path.GetFileName(fileSource);
 
                 Log($"Копирование файла [{ fileSource }] в [{ fileDest }]...", LogLevel.Info, offset);
-                File.Copy(fileSource, fileDest);
 
-                Log("Файл успешно скопирован", LogLevel.Debug, offset + 1);
-
+                try
+                {
+                    File.Copy(fileSource, fileDest);
+                    ++fileCount;
+                    Log("Файл успешно скопирован", LogLevel.Debug, offset + 1);
+                }
+                catch (Exception e)
+                {
+                    Log($"При копировании файла произошла ошибка: { e.Message }", LogLevel.Error, offset + 1);
+                }
             }
 
             foreach (string folderSource in foldersInDir)
@@ -80,25 +110,42 @@ namespace Backup_Khakhanov
         {
             string[] fromDirs = { @"C:\Dev\Backup\From1", @"C:\Dev\Backup\From2", @"C:\Dev\Backup\Fr:om3", "" };
 
-            Log($"Каталогов для резервного копирования: {fromDirs.Length}", LogLevel.Debug);
-            string timestamp = DateTime.Now.ToString("yyyy.MM.dd_HH-mm-ss");
-            Log($"Штамп: {timestamp}", LogLevel.Debug);
 
-
-            foreach (string fromDir in fromDirs)
+            if (fromDirs?.Length > 0)
             {
-                Log($"Резервное копирование каталога [{ fromDir }]...", LogLevel.Info);
+                Log($"Каталогов для резервного копирования: {fromDirs.Length}", LogLevel.Debug);
+                string timestamp = DateTime.Now.ToString("yyyy.MM.dd_HH-mm-ss");
+                Log($"Штамп: {timestamp}", LogLevel.Debug);
 
-                string toDir = $@"C:\Dev\Backup\To2\{ timestamp }\{ Path.GetFileName(fromDir) }";
-                CopyDir(fromDir, toDir);
+                string toDir;
+                foreach (string fromDir in fromDirs)
+                {
+                    Log($"Резервное копирование каталога [{ fromDir }]...", LogLevel.Info);
+
+
+                    try
+                    {
+                        toDir = $@"C:\Dev\Backup\To2\{ timestamp }\{ Path.GetFileName(fromDir) }";
+                    }
+                    catch (ArgumentException)
+                    {
+                        Log("Путь к копируемому каталогу содержит недопустимые символы", LogLevel.Error, 1);
+                        continue;
+                    }
+                    CopyDir(fromDir, toDir);
+                }
+
+
+                Log($"\nРезервное копирование { timestamp } завершено\nКаталогов скопировано: { dirCount }\nФайлов скопировано: { fileCount}", LogLevel.Info);
             }
-
-
-            Log($"\nРезервное копирование { timestamp } завершено", LogLevel.Info);
+            else
+            {
+                Log("Отсутствуют каталоги для резервного копирования", LogLevel.Error);
+            }
 
             Console.ReadLine();
         }
     }
 
-    public enum LogLevel { Debug, Info, Warning, Error}
+    public enum LogLevel { Debug, Info, Warning, Error }
 }
