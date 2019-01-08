@@ -8,43 +8,135 @@ using System.IO;
 
 namespace Backup_Khakhanov
 {
-
+    //Переписать логгер как класс, для повторного использования
+    //Убрать ReadLine, чтобы выпоолнять скриптом
     class Program
     {
-        static int fileCount, dirCount;
+        /// <summary>
+        /// Счетчик скопированных файлов
+        /// </summary>
+        static int fileCount;
 
+        /// <summary>
+        /// Счетчик скопированных директорий
+        /// </summary>
+        static int dirCount;
 
+        /// <summary>
+        /// Вывод в файл журналирования
+        /// </summary>
+        static StreamWriter logWriter = null;
+
+        /// <summary>
+        /// Флаг, определяющий, доступно ли журналирование
+        /// </summary>
+        static bool isLogAvailable = false;
+
+        /// <summary>
+        /// Журналирование в консоль и файл (если есть доступ)
+        /// </summary>
+        /// <param name="message">Событие</param>
+        /// <param name="lvl">Уровень события</param>
+        /// <param name="offset">Сдвиг, показывающий уровень вложенности</param>
         static void Log(string message, LogLevel lvl, int offset = 0)
         {
             if (offset < 0)
                 offset = 0;
 
-            string tabs = new String(' ', offset * 2);
+            string output = new String(' ', offset * 2) + message;
+            string prefix;
             ConsoleColor color;
 
             switch (lvl)
             {
                 case LogLevel.Info:
                     color = ConsoleColor.Gray;
+                    prefix = "INF";
                     break;
 
-                case LogLevel.Warning:
-                    color = ConsoleColor.DarkYellow;
-                    break;
                 case LogLevel.Error:
                     color = ConsoleColor.DarkRed;
+                    prefix = "ERR";
                     break;
 
                 default:
                     color = ConsoleColor.DarkGray;
+                    prefix = "DBG";
                     break;
             }
 
             Console.ForegroundColor = color;
+            Console.WriteLine(output);
+            Console.ForegroundColor = ConsoleColor.Gray;
 
-            Console.WriteLine($"{tabs}{message}");
+            //Запись в файл журнала производится, только если он доступен
+            if(isLogAvailable)
+            {
+                try
+                {
+                    logWriter.WriteLine(prefix+'\t'+output);
+                }
+                catch
+                {
+                    isLogAvailable = false;
+                    Log("Потерян доступ к файлу журнала. Вывод ведется только в консоль.", LogLevel.Error);
+                }
+            }
         }
 
+        /// <summary>
+        /// Создает главный каталог для резервного копирования и файл журнала выполнения в нем
+        /// Все выбрасываемые исключения возникают при создании каталога и считаются критическими
+        /// </summary>
+        /// <exception cref="IOException"></exception>
+        /// <exception cref="UnauthorizedAccessException"></exception>
+        /// <exception cref="ArgumentException"></exception>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="PathTooLongException"></exception>
+        /// <exception cref="DirectoryNotFoundException"></exception>
+        /// <exception cref="NotSupportedException"></exception>
+        /// <returns>Путь к созданной папке</returns>
+        static string CreateBackupDir()
+        {
+            string timestamp = DateTime.Now.ToString("yyyy.MM.dd_HH-mm-ss");
+            
+
+            string dir = @"C:\Dev\Backup\To\" + timestamp;
+
+            try
+            {
+                Directory.CreateDirectory(dir);
+            }
+            catch
+            {
+                //Невозможность создать эту директорию - критическая ошибка, которая должна приводить к завершению программы
+                throw;
+            }
+
+            try
+            {
+                string logPath = dir + "\\log.txt";
+                logWriter = File.AppendText(logPath);
+                logWriter.AutoFlush = true;
+                isLogAvailable = true;
+                Log("Журнал выполнения создан успешно: "+logPath, LogLevel.Debug);
+            }
+            catch(Exception e)
+            {
+                //Программа продолжит работать, если запись в файл невозможна
+                Log("Не удалось создать журнал выполнения: "+e.Message+"\nВывод ведется только в консоль", LogLevel.Error);
+            }
+
+            Log($"Штамп: {timestamp}", LogLevel.Debug);
+            return dir;
+        }
+
+        /// <summary>
+        /// Рекурсивно копирует внутрь каталога <see cref="toDir"/> каталог <see cref="fromDir"/> со всем его содержимым 
+        /// </summary>
+        /// <param name="fromDir">Каталог, содержимое которого копируется</param>
+        /// <param name="toDir">Каталог, в котором создается копия <see cref="fromDir"/></param>
+        /// <param name="offset">Глубина вложенности для оформления вывода</param>
         static void CopyDir(string fromDir, string toDir, int offset = 1)
         {
             string[] filesInDir = null;
@@ -64,6 +156,7 @@ namespace Backup_Khakhanov
 
             try
             {
+                toDir = toDir + "\\" + Path.GetFileName(fromDir);
                 Directory.CreateDirectory(toDir);
                 ++dirCount;
             }
@@ -95,13 +188,9 @@ namespace Backup_Khakhanov
 
             foreach (string folderSource in foldersInDir)
             {
-                //Не выкидывает исключение, потому что foldersInDir содержит только корректные пути
-                string folderDest = toDir + "\\" + Path.GetFileName(folderSource);
+                Log($"Копирование каталога [{ folderSource }] в [{ toDir }]...", LogLevel.Info, offset);
 
-                Log($"Копирование каталога [{ folderSource }] в [{ folderDest }]...", LogLevel.Info, offset);
-
-                //Все исключения обрабатываются внутри
-                CopyDir(folderSource, folderDest, offset + 1);
+                CopyDir(folderSource, toDir, offset + 1);
             }
 
         }
@@ -109,34 +198,31 @@ namespace Backup_Khakhanov
         static void Main(string[] args)
         {
             string[] fromDirs = { @"C:\Dev\Backup\From1", @"C:\Dev\Backup\From2", @"C:\Dev\Backup\Fr:om3", "" };
+            string toDir;
 
+            try
+            {
+                toDir = CreateBackupDir();
+            }
+            catch (Exception e)
+            {
+                Log("Критическая ошибка: не удалось создать каталог для резервного копирования: "+e.Message+ "\nВыполнение программы прервано", LogLevel.Error);
+                Console.ReadLine();
+                return;
+            }
 
             if (fromDirs?.Length > 0)
             {
                 Log($"Каталогов для резервного копирования: {fromDirs.Length}", LogLevel.Debug);
-                string timestamp = DateTime.Now.ToString("yyyy.MM.dd_HH-mm-ss");
-                Log($"Штамп: {timestamp}", LogLevel.Debug);
 
-                string toDir;
                 foreach (string fromDir in fromDirs)
                 {
                     Log($"Резервное копирование каталога [{ fromDir }]...", LogLevel.Info);
-
-
-                    try
-                    {
-                        toDir = $@"C:\Dev\Backup\To2\{ timestamp }\{ Path.GetFileName(fromDir) }";
-                    }
-                    catch (ArgumentException)
-                    {
-                        Log("Путь к копируемому каталогу содержит недопустимые символы", LogLevel.Error, 1);
-                        continue;
-                    }
                     CopyDir(fromDir, toDir);
                 }
 
 
-                Log($"\nРезервное копирование { timestamp } завершено\nКаталогов скопировано: { dirCount }\nФайлов скопировано: { fileCount}", LogLevel.Info);
+                Log($"Резервное копирование завершено\nКаталогов скопировано: { dirCount }\nФайлов скопировано: { fileCount}", LogLevel.Info);
             }
             else
             {
@@ -147,5 +233,5 @@ namespace Backup_Khakhanov
         }
     }
 
-    public enum LogLevel { Debug, Info, Warning, Error }
+    public enum LogLevel { Debug, Info, Error }
 }
