@@ -9,22 +9,22 @@ namespace Backup_Khakhanov
         /// <summary>
         ///     Стандартный путь файла конфигурации, рядом с исполняемым файлом
         /// </summary>
-        public const string Path = "config.js";
+        public const string Path = "config.json";
 
         /// <summary>
         ///     Массив каталогов для резервного копирования
         /// </summary>
-        public string[] copyFrom;
+        public string[] CopyFrom;
 
         /// <summary>
         ///     Каталог, в который будет производится резервное копирование
         /// </summary>
-        public string copyTo;
+        public string CopyTo;
 
         /// <summary>
         ///     Уровень журналирования
         /// </summary>
-        public LogLevel logLevel;
+        public LogLevel LogLevel;
 
         /// <summary>
         ///     Пустой конструктор нужен библиотеке Json.NET
@@ -42,9 +42,9 @@ namespace Backup_Khakhanov
         /// <param name="level">Уровень журналирования</param>
         public Config(string[] source, string dest, LogLevel level = LogLevel.Info)
         {
-            copyFrom = source;
-            copyTo = dest;
-            logLevel = level;
+            CopyFrom = source;
+            CopyTo = dest;
+            LogLevel = level;
         }
 
         /// <summary>

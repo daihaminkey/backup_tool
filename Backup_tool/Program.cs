@@ -161,14 +161,14 @@ namespace Backup_Khakhanov
                 return;
             }
 
-            Log.LogLevel = config.logLevel;
+            Log.LogLevel = config.LogLevel;
             Log.Print("Конфигурация загружена", LogLevel.Debug);
 
             string toDir;
 
             try
             {
-                toDir = CreateBackupDir(config.copyTo);
+                toDir = CreateBackupDir(config.CopyTo);
             }
             catch (Exception e)
             {
@@ -189,10 +189,10 @@ namespace Backup_Khakhanov
             }
 
 
-            if (config.copyFrom?.Length > 0)
+            if (config.CopyFrom?.Length > 0)
             {
                 var isCopyFromValid = true;
-                foreach (var dir in config.copyFrom)
+                foreach (var dir in config.CopyFrom)
                     if (!isValidDirRegex.IsMatch(dir))
                     {
                         isCopyFromValid = false;
@@ -206,9 +206,9 @@ namespace Backup_Khakhanov
                     return;
                 }
 
-                Log.Print($"Каталогов для резервного копирования: {config.copyFrom.Length}", LogLevel.Debug);
+                Log.Print($"Каталогов для резервного копирования: {config.CopyFrom.Length}", LogLevel.Debug);
 
-                foreach (var fromDir in config.copyFrom)
+                foreach (var fromDir in config.CopyFrom)
                 {
                     Log.Print($"Резервное копирование каталога [{fromDir}]...", LogLevel.Info);
                     CopyDir(fromDir, toDir);
